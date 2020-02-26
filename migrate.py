@@ -28,6 +28,11 @@ def main():
     # print(json.dumps(dst_zone_dict, indent=2))
 
     clear()
+    if input("Delete all DNS records from Destination zone? <y/N>: ").lower() in ['y', 'yes']:
+        delete_dns_records(cf, dst_zone_dict)
+    else:
+        print("Not deleting DNS records...")
+
     if input("Copy DNS? <y/N>: ").lower() in ['y', 'yes']:
         copy_dns_records(cf, src_zone_dict, dst_zone_dict)
     else:
@@ -45,6 +50,16 @@ def main():
         print("Not copying firewall rules...")
 
     return
+
+
+def delete_dns_records(cf, dst_zone_dict):
+    ''' Delete all DNS records from Destination Zone '''
+    dns_record_list = cf.zones.dns_records.get(dst_zone_dict['id'])
+    clear()
+    for dns_record in dns_record_list:
+        delete_result = cf.zones.dns_records.delete(dst_zone_dict['id'], dns_record['id'])
+        print("Deleted: {}".format(delete_result))
+    return 
 
 
 def delete_filters(cf, dst_zone_dict):
