@@ -1,6 +1,5 @@
 import json
 import os
-import click
 import CloudFlare
 import click
 import requests
@@ -22,7 +21,7 @@ def main():
     while id == src_zone_dict['id']:
         dst_zone_dict = select_zone(message, zone_list)
         id = dst_zone_dict['id']
-        if id == src_zone_dict['id']: 
+        if id == src_zone_dict['id']:
             message = "Source and destination can't be the same! Destination zone: "
     # print(json.dumps(src_zone_dict, indent=2))
     # print(json.dumps(dst_zone_dict, indent=2))
@@ -54,36 +53,43 @@ def main():
 
 def delete_dns_records(cf, dst_zone_dict):
     ''' Delete all DNS records from Destination Zone '''
-    dns_record_list = cf.zones.dns_records.get(dst_zone_dict['id'])
+    dns_record_list = cf.zones.dns_records.get(
+        dst_zone_dict['id'], params={'per_page': 500})
     clear()
     for dns_record in dns_record_list:
-        delete_result = cf.zones.dns_records.delete(dst_zone_dict['id'], dns_record['id'])
+        delete_result = cf.zones.dns_records.delete(
+            dst_zone_dict['id'], dns_record['id'])
         print("Deleted: {}".format(delete_result))
-    return 
+    return
 
 
 def delete_filters(cf, dst_zone_dict):
     ''' Delete filters from Destination Zone '''
-    filter_list = cf.zones.filters.get(dst_zone_dict['id'])
+    filter_list = cf.zones.filters.get(
+        dst_zone_dict['id'], params={'per_page': 100})
     clear()
     for filter in filter_list:
-        delete_result = cf.zones.filters.delete(dst_zone_dict['id'], filter['id'])
+        delete_result = cf.zones.filters.delete(
+            dst_zone_dict['id'], filter['id'])
         print("Deleted: {}".format(delete_result))
-    return 
+    return
 
 
 def copy_firewall_rules(cf, src_zone_dict, dst_zone_dict):
     ''' Copy firewall rules from Source Zone to Destination Zone '''
-    firewall_rules_list = cf.zones.firewall.rules.get(src_zone_dict['id'])
+    firewall_rules_list = cf.zones.firewall.rules.get(
+        src_zone_dict['id'], params={'per_page': 100})
     clear()
     target_filter_list = []
     for firewall_rule in firewall_rules_list:
         if src_zone_dict['name'] in firewall_rule['filter']['expression']:
-            firewall_rule['filter']['expression'] = firewall_rule['filter']['expression'].replace(src_zone_dict['name'], dst_zone_dict['name'])
+            firewall_rule['filter']['expression'] = firewall_rule['filter']['expression'].replace(
+                src_zone_dict['name'], dst_zone_dict['name'])
         target_filter_list.append(firewall_rule['filter'])
-    filter_result = cf.zones.filters.post(dst_zone_dict['id'], data=target_filter_list)
+    filter_result = cf.zones.filters.post(
+        dst_zone_dict['id'], data=target_filter_list)
     # print(json.dumps(filter_result, indent=2))
-        
+
     target_firewall_rule_list = []
     for firewall_rule in firewall_rules_list:
         for filter in filter_result:
@@ -93,42 +99,53 @@ def copy_firewall_rules(cf, src_zone_dict, dst_zone_dict):
                 target_firewall_rule_list.append(new_rule)
     # print(target_firewall_rule_list)
 
-    firewall_result = cf.zones.firewall.rules.post(dst_zone_dict['id'], data=target_firewall_rule_list)
+    firewall_result = cf.zones.firewall.rules.post(
+        dst_zone_dict['id'], data=target_firewall_rule_list)
     for rule in firewall_result:
-        print("Created Rule - Id: {}  Description: {}".format(rule['id'], rule['description']))
+        print(
+            "Created Rule - Id: {}  Description: {}".format(rule['id'], rule['description']))
 
     return
 
 
 def copy_page_rules(cf, src_zone_dict, dst_zone_dict):
     ''' Copy page rules from Source Zone to Destination Zone '''
-    page_rules_list = cf.zones.pagerules.get(src_zone_dict['id'])
+    page_rules_list = cf.zones.pagerules.get(
+        src_zone_dict['id'], params={'per_page': 100})
     clear()
     for pagerule in page_rules_list:
         print("SRC: " + pagerule['targets'][0]['constraint']['value'])
         if src_zone_dict['name'] in pagerule['targets'][0]['constraint']['value']:
-            pagerule['targets'][0]['constraint']['value'] = pagerule['targets'][0]['constraint']['value'].replace(src_zone_dict['name'], dst_zone_dict['name'])
-        newrule = {"targets":pagerule['targets'],"actions":pagerule['actions'],"priority":pagerule['priority'],"status":pagerule['status']}
+            pagerule['targets'][0]['constraint']['value'] = pagerule['targets'][0]['constraint']['value'].replace(
+                src_zone_dict['name'], dst_zone_dict['name'])
+        newrule = {"targets": pagerule['targets'], "actions": pagerule['actions'],
+                   "priority": pagerule['priority'], "status": pagerule['status']}
         result = cf.zones.pagerules.post(dst_zone_dict['id'], data=newrule)
         print("DST: " + pagerule['targets'][0]['constraint']['value'] + "\n")
     # print(json.dumps(page_rules_list, indent=2))
-    return 
+    return
 
 
 def copy_dns_records(cf, src_zone_dict, dst_zone_dict):
     ''' Copy DNS records from Source Zone to Destination Zone '''
-    dns_record_list = cf.zones.dns_records.get(src_zone_dict['id'])
+    dns_record_list = cf.zones.dns_records.get(
+        src_zone_dict['id'], params={'per_page': 500})
     clear()
     for dns_record in dns_record_list:
-        print("SRC: " + dns_record['type'] + (8 - len(dns_record['type'])) * " " + dns_record['name'] + "    " + dns_record['content'])
+        print("SRC: " + dns_record['type'] + (8 - len(dns_record['type']))
+              * " " + dns_record['name'] + "    " + dns_record['content'])
         if src_zone_dict['name'] in dns_record['name']:
-            dns_record['name'] = dns_record['name'].replace(src_zone_dict['name'], dst_zone_dict['name'])
+            dns_record['name'] = dns_record['name'].replace(
+                src_zone_dict['name'], dst_zone_dict['name'])
         if src_zone_dict['name'] in dns_record['content']:
-            dns_record['content'] = dns_record['content'].replace(src_zone_dict['name'], dst_zone_dict['name'])
-        result = cf.zones.dns_records.post(dst_zone_dict['id'], data=dns_record)
-        print("DST: " + dns_record['type'] + (8 - len(dns_record['type'])) * " " + dns_record['name'] + "    " + dns_record['content'] + "\n")
+            dns_record['content'] = dns_record['content'].replace(
+                src_zone_dict['name'], dst_zone_dict['name'])
+        result = cf.zones.dns_records.post(
+            dst_zone_dict['id'], data=dns_record)
+        print("DST: " + dns_record['type'] + (8 - len(dns_record['type']))
+              * " " + dns_record['name'] + "    " + dns_record['content'] + "\n")
     # print(json.dumps(dns_record_list, indent=2))
-    return 
+    return
 
 
 def select_zone(message, zone_list):
@@ -142,9 +159,10 @@ def select_zone(message, zone_list):
         try:
             zone_selection = int(i)
         except ValueError:
-            message = "Try a number between 1 and " + str(len(zone_list)) + ": "
+            message = "Try a number between 1 and " + \
+                str(len(zone_list)) + ": "
     return (zone_list[zone_selection - 1])
-   
+
 
 def print_zones(zone_list):
     clear()
@@ -152,13 +170,13 @@ def print_zones(zone_list):
     for zone in zone_list:
         print(str(zone_list.index(zone) + 1) + ". " + zone['name'])
     return
-   
 
-def clear(): 
-    if os.name == 'nt': 
-        _ = os.system('cls') 
-    else: 
-        _ = os.system('clear') 
+
+def clear():
+    if os.name == 'nt':
+        _ = os.system('cls')
+    else:
+        _ = os.system('clear')
 
 
 def sanity(x):
